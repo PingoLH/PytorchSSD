@@ -31,7 +31,7 @@ parser.add_argument('-v', '--version', default='SSD_HarDNet68',
                     help='SSD_HarDNet68 or SSD_HarDNet85')
 parser.add_argument('-s', '--size', default='512',
                     help='300 or 512 input size.')
-parser.add_argument('-d', '--dataset', default='COCO',
+parser.add_argument('-d', '--dataset', default='VOC',
                     help='VOC or COCO dataset')
 parser.add_argument(
     '--basenet', default='weights/vgg16_reducedfc.pth', help='pretrained base model')
@@ -54,7 +54,7 @@ parser.add_argument('--resume_epoch', default=0,
 
 parser.add_argument('-max', '--max_epoch', default=300,
                     type=int, help='max epoch for retraining')
-parser.add_argument('--weight_decay', default=1e-4,
+parser.add_argument('--weight_decay', default=5e-4,
                     type=float, help='Weight decay for SGD')
 parser.add_argument('-we', '--warm_epoch', default=1,
                     type=int, help='max epoch for retraining')
@@ -320,8 +320,8 @@ def train():
         loss_l, loss_c = criterion(out, priors, targets)
         # odm branch loss
 
-        mean_loss_c += loss_c.data[0]
-        mean_loss_l += loss_l.data[0]
+        mean_loss_c += loss_c.data
+        mean_loss_l += loss_l.data
 
         loss = loss_l + loss_c
         loss.backward()
