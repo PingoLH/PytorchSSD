@@ -93,6 +93,7 @@ class HarDBlock(nn.Module):
         self.links = []
         layers_ = []
         self.out_channels = 0
+        
         for i in range(n_layers):
           outch, inch, link = self.get_link(i+1, in_channels, growth_rate, grmul)
           self.links.append(link)
@@ -130,12 +131,13 @@ class HarDBlock(nn.Module):
 class HarDNetBase(nn.Module):
     def __init__(self, depth_wise=False):
         super().__init__()
-        first_ch  = [32, 64]
+        first_ch  = [48, 96]
         second_kernel = 3
-        ch_list = [  128, 256, 320, 640]
+ 
+        ch_list = [  192, 256, 320, 480, 720]
         grmul = 1.7
-        gr       = [  14, 16, 20, 40]
-        n_layers = [   8, 16, 16, 16]
+        gr       = [  24, 24, 28, 36, 48]
+        n_layers = [   8, 16, 16, 16, 16]
 
         if depth_wise:
           second_kernel = 1
@@ -164,21 +166,11 @@ class HarDNetBase(nn.Module):
 
             self.base.append ( ConvLayer(ch, ch_list[i], kernel=1) )
             ch = ch_list[i]
-            if i == 0:
+            if i== 0:
                 self.base.append(nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True))
-            elif i != blks-1 and i != 1:
+            elif i != blks-1 and i != 1 and i != 3:
                 self.base.append(nn.MaxPool2d(kernel_size=2, stride=2))
 
-        ch = ch_list[blks-1]
-        self.base.append(
-            nn.Sequential(
-                nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
-                nn.Conv2d(ch, ch, kernel_size=3, padding=4, dilation=4,bias=False),
-                nn.BatchNorm2d( ch ),
-                nn.ReLU( True ),
-                ConvLayer(ch, ch, kernel=1)
-            )
-        )                                                                                                                       
 
 
 class SSD(nn.Module):
@@ -198,19 +190,26 @@ class SSD(nn.Module):
         head: "multibox head" consists of loc and conf conv layers
     """
 
-    def __init__(self, extras, head, num_classes,size, pretrained_path='weights/hardnet68_base_bridge.pth'):
+    def __init__(self, extras, head, num_classes,size,pretrained_path='weights/hardnet85_base.pth'):
         super(SSD, self).__init__()
         self.num_classes = num_classes
         self.size = size
 
-        self.base = HarDNetBase().base
-        print(self.base)
 
+        self.base = HarDNetBase().base
+
+        # Additional bridge model without pretaining
+        # (please initialize this module before training)
+        self.bridge = nn.Sequential(
+                      nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
+                      ConvLayer(720,  960),
+                      ConvLayer(960, 720, kernel=1) )
+        
+        print(self.base)
         if pretrained_path is not None:
-          weights = torch.load(pretrained_path)
-          self.base.load_state_dict(weights)
-          print("HarDNet68 Base Model loaded.")
- 
+          weights = torch.load(pretrained_path)          
+          print("HarDNet85 Base Model loaded.")
+
         # Layer learns to scale the l2 normalized features from conv4_3
         self.dropout = nn.Dropout2d( p=0.1,  inplace=False )
         self.extras = nn.ModuleList(extras)
@@ -246,12 +245,13 @@ class SSD(nn.Module):
 
         for k in range(10):
             x = self.base[k](x)
-
         s = self.L2Norm(x)
         sources.append(s)
 
         for k in range(10, len(self.base)):
             x = self.base[k](x)
+        # Additional bridge model
+        x = self.bridge(x)
         sources.append(x)
 
         # apply extra layers and cache source layer outputs
@@ -314,7 +314,7 @@ def multibox( extra_layers, cfg, num_classes):
     loc_layers = []
     conf_layers = []
     vgg_source = [24, -2]
-    ch = [320, 640]
+    ch = [320, 720]
     source = [0, 1]
     for k, v in enumerate(source):
         loc_layers += [nn.Conv2d(ch[v],
@@ -346,5 +346,5 @@ def build_net(size=300, num_classes=21):
         print("Error: Sorry only SSD300 and SSD512 is supported currently!")
         return
 
-    return SSD(*multibox(add_extras(extras[str(size)], 640, size=size),
+    return SSD(*multibox(add_extras(extras[str(size)], 720, size=size),
                          mbox[str(size)], num_classes), num_classes=num_classes,size=size)

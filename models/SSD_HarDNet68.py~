@@ -208,7 +208,6 @@ class SSD(nn.Module):
 
         if pretrained_path is not None:
           weights = torch.load(pretrained_path)
-          self.base.load_state_dict(weights)
           print("HarDNet68 Base Model loaded.")
  
         # Layer learns to scale the l2 normalized features from conv4_3
