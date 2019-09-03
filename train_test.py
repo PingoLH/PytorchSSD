@@ -28,7 +28,7 @@ def str2bool(v):
 parser = argparse.ArgumentParser(
     description='Receptive Field Block Net Training')
 parser.add_argument('-v', '--version', default='SSD_HarDNet68',
-                    help='RFB_vgg ,RFB_E_vgg RFB_mobile SSD_vgg version.')
+                    help='SSD_HarDNet68 or SSD_HarDNet85')
 parser.add_argument('-s', '--size', default='512',
                     help='300 or 512 input size.')
 parser.add_argument('-d', '--dataset', default='COCO',
@@ -96,6 +96,7 @@ elif args.version == 'SSD_HarDNet85':
     from models.SSD_HarDNet85 import build_net
 else:
     print('Unkown version!')
+
 rgb_std = (1, 1, 1)
 img_dim = (300, 512)[args.size == '512']
 rgb_means = (104, 117, 123)
@@ -103,7 +104,6 @@ rgb_means = (104, 117, 123)
 p = (0.6, 0.2)[args.version == 'RFB_mobile']
 num_classes = (21, 81)[args.dataset == 'COCO']
 batch_size = args.batch_size
-weight_decay = 0.0005
 gamma = 0.1
 momentum = 0.9
 if args.visdom:
@@ -138,14 +138,6 @@ if not args.resume_net and args.test is None:
     net.conf.apply(weights_init)
     if hasattr(net, 'bridge'):
       net.bridge.apply(weights_init)
-    if args.version == 'FSSD_vgg' or args.version == 'FRFBSSD_vgg':
-        net.ft_module.apply(weights_init)
-        net.pyramid_ext.apply(weights_init)
-    if 'RFB' in args.version:
-        net.Norm.apply(weights_init)
-    if args.version == 'RFB_E_vgg':
-        net.reduce.apply(weights_init)
-        net.up_reduce.apply(weights_init)
 
 else:
     # load resume network
