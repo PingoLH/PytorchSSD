@@ -1,5 +1,7 @@
 # Pytorch SSD-HarDNet
-## Forked from https://github.com/lzx1413/PytorchSSD 
+### Harmonic DenseNet: A low memory traffic network (ICCV 2019)
+### 45% inference time reduction from VGG16, more accurate than ResNet101
+### Refer to [Pytorch-HarDNet](https://github.com/PingoLH/Pytorch-HarDNet) for more information
 
 HarDNet68/85: \
 With enhanced feature extraction on high resolution feature maps, the performance on object detection can be better than models designed for image classification which generally concentrate on global feature extraction.
