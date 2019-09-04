@@ -69,10 +69,6 @@ Note*: Check you GPU architecture support in utils/build.py, line 131. Default i
 ``` 
 'nvcc': ['-arch=sm_52',
 ```
-- Install [pyinn](https://github.com/szagoruyko/pyinn) for MobileNet backbone:
-```Shell
-pip install git+https://github.com/szagoruyko/pyinn.git@master
-```
 - Then download the dataset by following the [instructions](#download-voc2007-trainval--test) below and install opencv. 
 ```Shell
 conda install opencv
