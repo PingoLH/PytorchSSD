@@ -1,5 +1,5 @@
 # Pytorch SSD-HarDNet
-### Harmonic DenseNet: A low memory traffic network (ICCV 2019)
+### [Harmonic DenseNet: A low memory traffic network (ICCV 2019)](https://arxiv.org/abs/1909.00948)
 ### 45% inference time reduction from VGG16, more accurate than ResNet101
 ### Refer to [Pytorch-HarDNet](https://github.com/PingoLH/Pytorch-HarDNet) for more information
 
