@@ -57,9 +57,9 @@ overall performance
 
 
 ## Installation
-- Install [PyTorch-0.2.0-1.1.0](http://pytorch.org/) by selecting your environment on the website and running the appropriate command.
+- Install [PyTorch 0.2.0 - 0.4.1](http://pytorch.org/) by selecting your environment on the website and running the appropriate command.
 - Clone this repository. This repository is forked from [PytorchSSD](https://github.com/lzx1413/PytorchSSD),
-- Compile the nms and coco tools:
+- Compile the nms and coco tools: (The nms utilities need to be compiled with an old version of Pytorch. After compile, you can upgrade Pytorch to the newest version)
 ```Shell
 ./make.sh
 ```
