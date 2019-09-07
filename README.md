@@ -1,6 +1,6 @@
 # Pytorch SSD-HarDNet
 ### [Harmonic DenseNet: A low memory traffic network (ICCV 2019)](https://arxiv.org/abs/1909.00948)
-### 45% inference time reduction from SSD-VGG, more accurate than SSD-ResNet101
+### HarDNet68 is 127% faster than ResNet101 (backbone model only). How can it achieve a higher mAP with SSD512 compared with SSD513-ResNet101?
 ### Refer to [Pytorch-HarDNet](https://github.com/PingoLH/Pytorch-HarDNet) for more information
 
 HarDNet68/85: \
