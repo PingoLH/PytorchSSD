@@ -28,10 +28,10 @@ def str2bool(v):
 parser = argparse.ArgumentParser(
     description='Receptive Field Block Net Training')
 parser.add_argument('-v', '--version', default='SSD_HarDNet68',
-                    help='SSD_HarDNet68 or SSD_HarDNet85')
+                    help='SSD_vgg | SSD_HarDNet68 | SSD_HarDNet85 | RFB_HarDNet68 | RFB_HarDNet85')
 parser.add_argument('-s', '--size', default='512',
                     help='300 or 512 input size.')
-parser.add_argument('-d', '--dataset', default='VOC',
+parser.add_argument('-d', '--dataset', default='COCO',
                     help='VOC or COCO dataset')
 parser.add_argument(
     '--basenet', default='weights/vgg16_reducedfc.pth', help='pretrained base model')
@@ -43,7 +43,7 @@ parser.add_argument('--num_workers', default=8,
                     type=int, help='Number of workers used in dataloading')
 parser.add_argument('--cuda', default=True,
                     type=bool, help='Use cuda to train model')
-parser.add_argument('--ngpu', default=1, type=int, help='gpus')
+parser.add_argument('--ngpu', default=2, type=int, help='gpus')
 parser.add_argument('--lr', '--learning-rate',
                     default=4e-3, type=float, help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
@@ -52,11 +52,11 @@ parser.add_argument('--resume_net', default=False, help='resume net for retraini
 parser.add_argument('--resume_epoch', default=0,
                     type=int, help='resume iter for retraining')
 
-parser.add_argument('-max', '--max_epoch', default=300,
+parser.add_argument('-max', '--max_epoch', default=150,
                     type=int, help='max epoch for retraining')
-parser.add_argument('--weight_decay', default=5e-4,
+parser.add_argument('--weight_decay', default=1e-4,
                     type=float, help='Weight decay for SGD')
-parser.add_argument('-we', '--warm_epoch', default=1,
+parser.add_argument('-we', '--warm_epoch', default=0,
                     type=int, help='max epoch for retraining')
 parser.add_argument('--gamma', default=0.1,
                     type=float, help='Gamma update for SGD')
@@ -90,16 +90,23 @@ else:
     train_sets = [('2017', 'train')]
     cfg = (COCO_300, COCO_512)[args.size == '512']
 
-if args.version == 'SSD_HarDNet68':
+if args.version == 'SSD_vgg':
+    from models.SSD_vgg import build_net
+    
+elif args.version == 'SSD_HarDNet68':
     from models.SSD_HarDNet68 import build_net
 elif args.version == 'SSD_HarDNet85':
     from models.SSD_HarDNet85 import build_net
+elif args.version == 'RFB_HarDNet68':
+    from models.RFB_HarDNet68 import build_net
+elif args.version == 'RFB_HarDNet85':
+    from models.RFB_HarDNet85 import build_net
+
 else:
     print('Unkown version!')
-
 rgb_std = (1, 1, 1)
-img_dim = (300, 512)[args.size == '512']
 rgb_means = (104, 117, 123)
+img_dim = (300, 512)[args.size == '512']
 
 p = (0.6, 0.2)[args.version == 'RFB_mobile']
 num_classes = (21, 81)[args.dataset == 'COCO']
@@ -113,8 +120,12 @@ if args.visdom:
 
 net = build_net(img_dim, num_classes)
 print(net)
-
 if not args.resume_net and args.test is None:
+    if args.version == 'SSD_vgg':
+      base_weights = torch.load(args.basenet)
+      print('Loading base network...')
+      net.base.load_state_dict(base_weights)
+
 
     def xavier(param):
         init.xavier_uniform(param)
@@ -136,8 +147,10 @@ if not args.resume_net and args.test is None:
     net.extras.apply(weights_init)
     net.loc.apply(weights_init)
     net.conf.apply(weights_init)
+    if 'RFB' in args.version:
+        net.Norm.apply(weights_init)
     if hasattr(net, 'bridge'):
-      net.bridge.apply(weights_init)
+        net.bridge.apply(weights_init)        
 
 else:
     # load resume network
@@ -146,10 +159,9 @@ else:
     if args.test is not None:
         print('Loading pretrained model for testing:', args.test)
         state_dict = torch.load(args.test)
-    else:
+    else:                    
         print('Loading resume network', resume_net_path)
         state_dict = torch.load(resume_net_path)
-         
     # create new OrderedDict that does not contain `module.`
     from collections import OrderedDict
 
@@ -163,8 +175,8 @@ else:
         new_state_dict[name] = v
     net.load_state_dict(new_state_dict)
 
-#if args.ngpu > 1:
-net = torch.nn.DataParallel(net, device_ids=list(range(args.ngpu)))
+if args.ngpu > 0:
+    net = torch.nn.DataParallel(net, device_ids=list(range(args.ngpu)))
 
 if args.cuda:
     net.cuda()
@@ -212,6 +224,7 @@ def test():
                  BaseTransform(net.module.size, rgb_means, rgb_std, (2, 0, 1)),
                  top_k, thresh=0.02)
 
+
 def train():
     net.train()
     # loss counters
@@ -221,8 +234,8 @@ def train():
     epoch_size = len(train_dataset) // args.batch_size
     max_iter = args.max_epoch * epoch_size
 
-    stepvalues_VOC = (180 * epoch_size, 240 * epoch_size, 270 * epoch_size)
-    stepvalues_COCO = (90 * epoch_size, 120 * epoch_size, 135 * epoch_size)
+    stepvalues_VOC = (150 * epoch_size, 200 * epoch_size, 250 * epoch_size)
+    stepvalues_COCO = (90 * epoch_size, 120 * epoch_size, 140 * epoch_size)
     stepvalues = (stepvalues_VOC, stepvalues_COCO)[args.dataset == 'COCO']
     print('Training', args.version, 'on', train_dataset.name)
     step_index = 0
@@ -373,7 +386,7 @@ def test_net(save_folder, net, detector, cuda, testset, transform, max_per_image
     all_boxes = [[[] for _ in range(num_images)]
                  for _ in range(num_classes)]
 
-    _t = {'im_detect': Timer(), 'misc': Timer(), 'net': Timer()}
+    _t = {'im_detect': Timer(), 'misc': Timer()}
     det_file = os.path.join(save_folder, 'detections.pkl')
 
     if args.retest:
@@ -383,8 +396,6 @@ def test_net(save_folder, net, detector, cuda, testset, transform, max_per_image
         testset.evaluate_detections(all_boxes, save_folder)
         return
 
-    network_time = detect_time = 0
-
     for i in range(num_images):
         img = testset.pull_image(i)
         x = Variable(transform(img).unsqueeze(0), volatile=True)
@@ -393,12 +404,10 @@ def test_net(save_folder, net, detector, cuda, testset, transform, max_per_image
 
         torch.cuda.synchronize()
         _t['im_detect'].tic()
-        _t['net'].tic()
         out = net(x=x, test=True)  # forward pass
-        torch.cuda.synchronize()
-        network_time += _t['net'].toc()
         boxes, scores = detector.forward(out, priors)
-        detect_time += _t['im_detect'].toc()
+        torch.cuda.synchronize()
+        detect_time = _t['im_detect'].toc()
         boxes = boxes[0]
         scores = scores[0]
 
@@ -440,12 +449,10 @@ def test_net(save_folder, net, detector, cuda, testset, transform, max_per_image
         nms_time = _t['misc'].toc()
 
         if i % 20 == 0:
-            print('im_detect: {:d}/{:d}  Network = {:.2f} fps,  Detection = {:.2f} fps,  NMS = {:.4f} s'
-                  .format(i + 1, num_images, 20.0/network_time, 20.0/detect_time, nms_time))
+            print('im_detect: {:d}/{:d}  Detection: {:.2f}ms,  NMS: {:.2f}ms'
+                  .format(i + 1, num_images, detect_time*1000.0, nms_time*1000.0))
             _t['im_detect'].clear()
             _t['misc'].clear()
-            _t['net'].clear()
-            network_time = detect_time = 0
 
     with open(det_file, 'wb') as f:
         pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
@@ -460,6 +467,7 @@ def test_net(save_folder, net, detector, cuda, testset, transform, max_per_image
 
 if __name__ == '__main__':
     if args.test is not None:
-      test()
+        test()
     else:
-      train()
+        train()
+        
