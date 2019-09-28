@@ -1,6 +1,5 @@
 # Pytorch SSD-HarDNet
 ### [Harmonic DenseNet: A low memory traffic network (ICCV 2019)](https://arxiv.org/abs/1909.00948)
-### HarDNet68 is 127% faster than ResNet101 (backbone model only), while it achieves a higher mAP with SSD512 compared with SSD513-ResNet101
 ### Refer to [Pytorch-HarDNet](https://github.com/PingoLH/Pytorch-HarDNet) for more information
 
 HarDNet68/85: \
@@ -12,12 +11,16 @@ With enhanced feature extraction on high resolution feature maps, the performanc
 
 
 ## Results
-| Method | COCO mAP on test-dev | 
-| :---: |  :---:  | 
-| SSD512-VGG16  | 28.8 | 
-| SSD513-ResNet101 | 31.2 |
-| **SSD512-HarDNet68**   | **31.7** | 
-| **SSD512-HarDNet85**   | **35.1** | 
+| Method | COCO mAP on test-dev | Inference Time |
+| :---: |  :---:  |  :---:  | 
+| SSD512-VGG16  | 28.8 |  15.7ms  |
+| SSD513-ResNet101 | 31.2 | - |
+| **SSD512-HarDNet68**   | **31.7** | 12.9ms |
+| **SSD512-HarDNet85**   | **35.1** | 15.8ms |
+| **RFBNet512-HarDNet68**   | **33.9** | 16.7ms |
+| **RFBNet512-HarDNet85**   | **36.8** | 19.3ms |
+
+Note: Inference time results were measured on a Titan V with pytorch 1.0.1 for detection only (NMS time was NOT included, which is 13~18ms in general cases). You might notice that HarDNet85 should be 28% faster than VGG-16 according to our [measurement](https://github.com/PingoLH/Pytorch-HarDNet) for ImageNet models. However, HarDNet still suffers from the explicit tensor copy for concatenations, such that the inference time reduction for a smaller image size (512x512) could be diminished more than for a larger image size (1024x1024 for the ImageNet model measurement).
 
 SSD512-HarDNet68 detailed results:
 ```
@@ -54,7 +57,39 @@ overall performance
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.673
  ```
 
-
+RFBNet512-HarDNet68 detailed results:
+```
+overall performance
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.339
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.543
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.362
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.147
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.366
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.505
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.292
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.444
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.468
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.233
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.500
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.664
+ ```
+ 
+ RFBNet512-HarDNet85 detailed results:
+```
+overall performance
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.368
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.571
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.395
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.169
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.405
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.529
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.309
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.474
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.498
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.259
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.543
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.688
+ ```
 
 ## Installation
 - Install [PyTorch 0.2.0 - 0.4.1](http://pytorch.org/) by selecting your environment on the website and running the appropriate command.
@@ -109,10 +144,15 @@ $COCO/images/val2014/
 python train_test.py -v SSD_HarDNet68 -s 512 --test <path_to_pretrained_weight.pth>
 ```
 
-## COCO Pretrained Weights
-Please download COCO pretrained weights from the following links:\
-[SSD-HarDNet68 COCO-pretrained weights](https://drive.google.com/file/d/1IHXvQMsQbuwYbuxW7HjFQHhGSX6SKz70/view?usp=sharing)\
-[SSD-HarDNet85 COCO-pretrained weights](https://drive.google.com/file/d/1gagahaMFOKG6hOGpU0-CgL3m1yc13ktr/view?usp=sharing)
+## Pretrained Weights
+- Pretrained backbone models: 
+[hardnet68_base_bridge.pth](https://ping-chao.com/hardnet/hardnet68_base_bridge.pth) | 
+[hardnet85_base.pth](https://ping-chao.com/hardnet/hardnet85_base.pth) 
+- Pretrained models for COCO dataset:
+[SSD512-HarDNet68](https://ping-chao.com/hardnet/SSD512_HarDNet68_COCO.pth) | 
+[SSD512-HarDNet85](https://ping-chao.com/hardnet/SSD512_HarDNet85_COCO.pth) | 
+[RFBNet512-HarDNet68](https://ping-chao.com/hardnet/RFB512_HarDNet68_COCO.pth) | 
+[RFBNet512-HarDNet85](https://ping-chao.com/hardnet/RFB512_HarDNet85_COCO.pth)
 
 
 
@@ -132,3 +172,4 @@ python train_test.py -d VOC -v SSD_HarDNet68 -s 512
 - initial lr = 4e-3
 - lr decay by 0.1 at [60%, 80%, 90%] of total epochs
 - weight decay = 1e-4 (COCO) / 5e-4 (VOC)
+- we = 0 (no need for warm up)
