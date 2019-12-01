@@ -11,13 +11,13 @@ import torch.backends.cudnn as cudnn
 import torch.nn.init as init
 import torch.optim as optim
 import torch.utils.data as data
+import torchvision
 from torch.autograd import Variable
 
 from data import VOCroot, COCOroot, VOC_300, VOC_512, COCO_300, COCO_512, COCO_mobile_300, AnnotationTransform, \
     COCODetection, VOCDetection, detection_collate, BaseTransform, preproc
 from layers.functions import Detect, PriorBox
 from layers.modules import MultiBoxLoss
-from utils.nms_wrapper import nms
 from utils.timer import Timer
 
 
@@ -43,7 +43,7 @@ parser.add_argument('--num_workers', default=8,
                     type=int, help='Number of workers used in dataloading')
 parser.add_argument('--cuda', default=True,
                     type=bool, help='Use cuda to train model')
-parser.add_argument('--ngpu', default=2, type=int, help='gpus')
+parser.add_argument('--ngpu', default=1, type=int, help='gpus')
 parser.add_argument('--lr', '--learning-rate',
                     default=4e-3, type=float, help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
@@ -385,8 +385,8 @@ def test_net(save_folder, net, detector, cuda, testset, transform, max_per_image
     num_classes = (21, 81)[args.dataset == 'COCO']
     all_boxes = [[[] for _ in range(num_images)]
                  for _ in range(num_classes)]
-
-    _t = {'im_detect': Timer(), 'misc': Timer()}
+    
+    _t = {'im_detect': Timer(), 'misc': Timer(), 'overall': Timer()}
     det_file = os.path.join(save_folder, 'detections.pkl')
 
     if args.retest:
@@ -403,56 +403,68 @@ def test_net(save_folder, net, detector, cuda, testset, transform, max_per_image
             x = x.cuda()
 
         torch.cuda.synchronize()
+        _t['overall'].tic()
         _t['im_detect'].tic()
         out = net(x=x, test=True)  # forward pass
         boxes, scores = detector.forward(out, priors)
         torch.cuda.synchronize()
         detect_time = _t['im_detect'].toc()
+
+        _t['misc'].tic()
         boxes = boxes[0]
         scores = scores[0]
 
-        boxes = boxes.cpu().numpy()
-        scores = scores.cpu().numpy()
         # scale each detection back up to the image
         scale = torch.Tensor([img.shape[1], img.shape[0],
-                              img.shape[1], img.shape[0]]).cpu().numpy()
+                              img.shape[1], img.shape[0]]).cuda()
         boxes *= scale
-
-        _t['misc'].tic()
-
+        
+        # Filter out bboxes with really high prob to be a background
+        background_th = 0.9
+        scores_class = scores.max(1)[1]
+        inds = torch.where((scores_class > 0) | (scores[:,0]<background_th))[0]
+        boxes = boxes[inds]
+        scores = scores[inds]
+        
         for j in range(1, num_classes):
-            inds = np.where(scores[:, j] > thresh)[0]
+            inds = torch.where(scores[:, j] > thresh)[0]
             if len(inds) == 0:
-                all_boxes[j][i] = np.empty([0, 5], dtype=np.float32)
+                all_boxes[j][i] = torch.empty([0, 5], dtype=torch.float32)
                 continue
             c_bboxes = boxes[inds]
             c_scores = scores[inds, j]
-            c_dets = np.hstack((c_bboxes, c_scores[:, np.newaxis])).astype(
-                np.float32, copy=False)
-            if args.dataset == 'VOC':
-                cpu = False
-            else:
-                cpu = False
 
-            keep = nms(c_dets, 0.45, force_cpu=cpu)
+            keep = torchvision.ops.nms(c_bboxes, c_scores.view(-1), 0.45)
+
             keep = keep[:50]
+            c_dets = torch.cat([c_bboxes, c_scores.view(-1,1)],1)
             c_dets = c_dets[keep, :]
             all_boxes[j][i] = c_dets
-        if max_per_image > 0:
-            image_scores = np.hstack([all_boxes[j][i][:, -1] for j in range(1, num_classes)])
-            if len(image_scores) > max_per_image:
-                image_thresh = np.sort(image_scores)[-max_per_image]
-                for j in range(1, num_classes):
-                    keep = np.where(all_boxes[j][i][:, -1] >= image_thresh)[0]
-                    all_boxes[j][i] = all_boxes[j][i][keep, :]
 
+        if max_per_image > 0:
+            image_scores = torch.cat([all_boxes[j][i][:, -1] for j in range(1, num_classes)])
+            if len(image_scores) > max_per_image:
+                image_thresh = torch.sort(image_scores)[0][-max_per_image]
+                for j in range(1, num_classes):
+                    keep = torch.where(all_boxes[j][i][:, -1] >= image_thresh)[0]
+                    all_boxes[j][i] = all_boxes[j][i][keep, :].cpu().numpy()
+            else:
+                for j in range(1, num_classes):
+                    all_boxes[j][i] = all_boxes[j][i].cpu().numpy()
+
+        torch.cuda.synchronize()
         nms_time = _t['misc'].toc()
+        overall = _t['overall'].toc()
 
         if i % 20 == 0:
-            print('im_detect: {:d}/{:d}  Detection: {:.2f}ms,  NMS: {:.2f}ms'
-                  .format(i + 1, num_images, detect_time*1000.0, nms_time*1000.0))
+            print('im_detect: {:d}/{:d}  Detection: {:5.2f}ms,   NMS: {:5.2f}ms,   All: {:4.1f} fps'
+                  .format(i + 1, num_images, detect_time*1000.0, nms_time*1000.0, 1/(detect_time+nms_time)))
             _t['im_detect'].clear()
             _t['misc'].clear()
+        if i == 0:
+            _t['overall'].clear() #discount the first inference
+
+    print('Overall: %5.3f fps (%d images)'%(1/overall, _t['overall'].calls))
 
     with open(det_file, 'wb') as f:
         pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
