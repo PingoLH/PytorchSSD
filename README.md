@@ -11,18 +11,29 @@ With enhanced feature extraction on high resolution feature maps, the performanc
 
 
 ## Results
-| Method | COCO mAP on test-dev | Inference Time |
+| Method | COCO mAP <br> on test-dev | Overall fps <br> (Titan X) | Overall fps <br> (1080Ti) | Overall fps <br> (Titan V) |
+| :---: |  :---:  |  :---:  | :---:  | :---:  | 
+| **SSD512-HarDNet68**   | **31.7** | 41 fps | 46.7 fps | 50.4 fps|
+| **SSD512-HarDNet85**   | **35.1** | 32.7 fps | 39.4 fps | 43.4 fps |
+| **RFBNet512-HarDNet68**   | **33.9** | 30 fps | 37.5 fps | 41.5 fps |
+| **RFBNet512-HarDNet85**   | **36.8** | 26 fps | 33.5 fps | 37.1 fps |
+
+12/19 2019 update: Release new overall frame rate measurements after the nms speed improvement*.
+
+*nms speed improvement: 1. employ torchvision nms. 2. filter out bbox with high prob to be background before the nms.
+
+| Method | COCO mAP on test-dev | Inference Time <br> (1080ti, without nms) |
 | :---: |  :---:  |  :---:  | 
-| SSD512-VGG16  | 28.8 |  15.7ms  |
+| SSD512-VGG16  | 28.8 |  19.7ms  |
 | SSD513-ResNet101 | 31.2 | - |
-| **SSD512-HarDNet68**   | **31.7** | 12.9ms |
-| **SSD512-HarDNet85**   | **35.1** | 15.8ms |
-| **RFBNet512-HarDNet68**   | **33.9** | 16.7ms |
-| **RFBNet512-HarDNet85**   | **36.8** | 19.3ms |
+| **SSD512-HarDNet68**   | **31.7** | 13.8ms |
+| **SSD512-HarDNet85**   | **35.1** | 18.5ms |
+| **RFBNet512-HarDNet68**   | **33.9** | 20.0ms |
+| **RFBNet512-HarDNet85**   | **36.8** | 23.2ms |
 
-Note: Inference time results were measured on a Titan V with pytorch 1.0.1 for detection only (NMS time was NOT included, which is 13~18ms in general cases). You might notice that HarDNet85 should be 28% faster than VGG-16 according to our [measurement](https://github.com/PingoLH/Pytorch-HarDNet) for ImageNet models. However, HarDNet still suffers from the explicit tensor copy for concatenations, such that the inference time reduction for a smaller image size (512x512) could be diminished more than for a larger image size (1024x1024 for the ImageNet model measurement).
+Note: Inference time and overall fps results were measured with pytorch 1.3 (float32) and cuda 10.1. Please note that HarDNet still suffers from the explicit tensor copy for concatenations. To fully utilize the GPU please increase the batch size or input image size(> 512x512) in the test time. The current results was tested with batch_size=1 and image_size=512x512, which utilize only ~50% of GPU time in average.
 
-SSD512-HarDNet68 detailed results:
+SSD512-HarDNet68 detailed results (test-dev):
 ```
 overall performance
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.317
@@ -40,7 +51,7 @@ overall performance
 ```
 
 
-SSD512-HarDNet85 detailed results:
+SSD512-HarDNet85 detailed results (test-dev):
 ```
 overall performance
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.351
@@ -57,7 +68,7 @@ overall performance
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.673
  ```
 
-RFBNet512-HarDNet68 detailed results:
+RFBNet512-HarDNet68 detailed results (test-dev):
 ```
 overall performance
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.339
@@ -74,7 +85,7 @@ overall performance
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.664
  ```
  
- RFBNet512-HarDNet85 detailed results:
+ RFBNet512-HarDNet85 detailed results (test-dev):
 ```
 overall performance
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.368
